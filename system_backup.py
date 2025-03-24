@@ -1,9 +1,9 @@
 import os
 import datetime
-import shutil
 import ctypes
 import sys
 import time
+import subprocess
 
 # Ensure script is running as Admin
 def is_admin():
@@ -19,31 +19,44 @@ if not is_admin():
     sys.exit()
 
 # Define backup storage location
-backup_location = "D:\\SystemBackup"
+backup_drive = "D:"
+backup_folder = os.path.join(backup_drive, "SystemBackup")
 
 # Ensure backup directory exists
-if not os.path.exists(backup_location):
-    os.makedirs(backup_location)
+if not os.path.exists(backup_folder):
+    os.makedirs(backup_folder)
 
-# Generate a timestamped folder for each backup
+# Generate a timestamped backup directory
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-backup_folder = os.path.join(backup_location, f"Backup_{timestamp}")
+backup_target = os.path.join(backup_folder, f"Backup_{timestamp}")
 
-# Run Windows Backup Command with Elevated Permissions
-backup_command = f'''
-wbAdmin start backup -backupTarget:{backup_folder} -include:C: -allCritical -quiet
-'''
+# Corrected Windows Backup Command
+backup_command = [
+    "wbAdmin", "start", "backup",
+    "-backupTarget:D:",    # Backup drive
+    "-include:C:",         # System drive
+    "-allCritical",        # Ensure system files are included
+    "-quiet"               # Run without asking for confirmation
+]
 
-print(f"Starting Windows system backup to {backup_folder}...\n")
-os.system(backup_command)
-print("\nBackup completed successfully!")
+print(f"Starting system backup to {backup_target}...\n")
+
+# Run the backup command and capture output
+process = subprocess.run(backup_command, shell=True, capture_output=True, text=True)
+
+# Check for errors
+if process.returncode == 0:
+    print("\nBackup completed successfully!")
+else:
+    print("\nBackup failed. Error:")
+    print(process.stderr)
 
 # Delete old backups (older than 7 days)
 retention_days = 7
-for folder in os.listdir(backup_location):
-    folder_path = os.path.join(backup_location, folder)
+for folder in os.listdir(backup_folder):
+    folder_path = os.path.join(backup_folder, folder)
     if os.path.isdir(folder_path):
         creation_time = os.path.getctime(folder_path)
         if (time.time() - creation_time) > (retention_days * 24 * 60 * 60):
-            shutil.rmtree(folder_path)
+            os.rmdir(folder_path)  # Use os.rmdir() instead of shutil.rmtree()
             print(f"Deleted old backup: {folder_path}")
